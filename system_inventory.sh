@@ -1,31 +1,59 @@
+#!/bin/bash
 
-Welcome to the sytem inventory script. This script will allow you to
-invetory the system you are currently working on and organize the output in
-a folder that can be shared with your management!
+#Description: New Server scan
+#Author: Patrice Fozin 
 
-This system report was performed by 
-root
-on 
-Sat Oct 12 16:04:41 EDT 2019
+LOG=`touch log.$(date +%F)`
+echo "" > ${LOG}
+echo -e "\n****************************************************************************************" >>${LOG}
+echo "     **************************System scan Report************************************" >> ${LOG}
+echo -e "\n****************************************************************************************" >> ${LOG}
 
-The kernel version of the system is: 
-3.10.0-327.el7.x86_64
+## CPU check
+CPU=$(lscpu|grep "CPU MHz:"|awk -F: '{print$2}'|awk -F" " '{print$1}')
 
-The system bits is: 
-64
+if [[ $CPU -lt 4000 ]]; then
+echo "Failed the CPU check. The CPU required size is greater or equal to 4000 MHz"
+fi
 
-The Os version is: 
-LSB Version:	:core-4.1-amd64:core-4.1-noarch
-Distributor ID:	CentOS
-Description:	CentOS Linux release 7.2.1511 (Core) 
-Release:	7.2.1511
-Codename:	Core
+## User Ansible check 
 
-The last time the system was booted was: 
- 16:04:42 up  5:20,  3 users,  load average: 0.19, 0.17, 0.15
+id ansible 2>&1 >/dev/null 
 
-The memory size is: 
-              total        used        free      shared  buff/cache   available
-Mem:           1792         965         152          16         674         647
-Swap:          2047           0        2047
+if [ $? -eq 0 ]; then
+grep "TMP" /home/ansible/.bash_profile 2>/dev/null || echo -e "TMP=/tmp " >> /home/ansible/.bash_profile
+grep "TMPDIR" /home/ansible/.bash_profile 2>/dev/null  || echo -e "TMPDIR=TMP " >> /home/ansible/.bash_profile
 
+else 
+
+useradd ansible 
+
+echo -e "TMP=/tmp " >> /home/ansible/.bash_profile
+echo -e "TMPDIR=TMP " >> /home/ansible/.bash_profile
+echo "User ansible was missing but is now  created " >> ${LOG}
+fi
+
+## Check for memory size
+Mem=`free -m|grep Mem:|awk '{print$2}'`
+if [ ${Mem} -lt 8096 ]; then
+echo -e "\n Memory insufficient. You have only ${Mem} instead of 8096." >> ${LOG}
+echo "Memory check failed" >> ${LOG}
+fi
+
+### Kernel version needs to be at least 
+
+Ker=`uname -r |awk -F. '{print$1}'`
+if [ ${ker} -lt 3 ]; then
+echo -e "\n Kernel version is ${ker} " >> ${LOG}
+echo "Kernel check failed" >> ${LOG}
+fi
+
+### File system size
+
+Rootfs=`df -h|head -3|tail -1|awk '{print$4}'|awk -F% '{print$1}'`
+if [ ${Rootfs} -lt 10 ]; then
+echo -e "\n Root filesystem too big please increase " >> ${LOG}
+fi
+
+
+##
